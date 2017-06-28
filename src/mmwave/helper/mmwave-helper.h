@@ -106,7 +106,7 @@ public:
 	NetDeviceContainer InstallMcUeDevice (NodeContainer c);
 	NetDeviceContainer InstallInterRatHoCapableUeDevice(NodeContainer c);
 	NetDeviceContainer InstallEnbDevice (NodeContainer c);
-	NetDeviceContainer InstallLteEnbDevice (NodeContainer c);
+	NetDeviceContainer InstallLteEnbDevice (NodeContainer c, bool connectRCF=false);
 	void SetAntenna (uint16_t Nrx, uint16_t Ntx);
 	void SetPathlossModelType (std::string type);
 	void SetChannelModelType (std::string type);
@@ -194,7 +194,7 @@ private:
 	Ptr<NetDevice> InstallSingleUeDevice (Ptr<Node> n);
 	Ptr<NetDevice> InstallSingleMcUeDevice (Ptr<Node> n);
 	Ptr<NetDevice> InstallSingleEnbDevice (Ptr<Node> n);
-	Ptr<NetDevice> InstallSingleLteEnbDevice (Ptr<Node> n);
+	Ptr<NetDevice> InstallSingleLteEnbDevice (Ptr<Node> n, bool connectRCF=false);
 	Ptr<NetDevice> InstallSingleInterRatHoCapableUeDevice(Ptr<Node> n);
 
 	void AttachToClosestEnb (Ptr<NetDevice> ueDevice, NetDeviceContainer enbDevices);

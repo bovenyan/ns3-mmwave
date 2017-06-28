@@ -499,7 +499,7 @@ MmWaveHelper::InstallEnbDevice (NodeContainer c)
 }
 
 NetDeviceContainer
-MmWaveHelper::InstallLteEnbDevice (NodeContainer c)
+MmWaveHelper::InstallLteEnbDevice (NodeContainer c, bool connectRCF)
 {
 	NS_LOG_FUNCTION (this);
 	Initialize ();  // Run DoInitialize (), if necessary
@@ -507,7 +507,7 @@ MmWaveHelper::InstallLteEnbDevice (NodeContainer c)
 	for (NodeContainer::Iterator i = c.Begin (); i != c.End (); ++i)
 	  {
 	    Ptr<Node> node = *i;
-	    Ptr<NetDevice> device = InstallSingleLteEnbDevice (node);
+	    Ptr<NetDevice> device = InstallSingleLteEnbDevice (node, connectRCF);
 	    device->SetAddress (Mac48Address::Allocate ());
 	    devices.Add (device);
 	  }
@@ -1339,7 +1339,7 @@ MmWaveHelper::InstallSingleEnbDevice (Ptr<Node> n)
 
 
 Ptr<NetDevice>
-MmWaveHelper::InstallSingleLteEnbDevice (Ptr<Node> n)
+MmWaveHelper::InstallSingleLteEnbDevice (Ptr<Node> n, bool connectRCF)
 {
 	NS_ABORT_MSG_IF (m_cellIdCounter == 65535, "max num eNBs exceeded");
 	uint16_t cellId = ++m_cellIdCounter;
@@ -1517,6 +1517,10 @@ MmWaveHelper::InstallSingleLteEnbDevice (Ptr<Node> n)
 	  rrc->SetEpcX2SapProvider (x2->GetEpcX2SapProvider ());
 	  rrc->SetEpcX2PdcpProvider (x2->GetEpcX2PdcpProvider ());
 	}
+
+    if (connectRCF){
+        rrc->RCFinit(); 
+    }
 
 	return dev;
 }

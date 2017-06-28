@@ -22,8 +22,6 @@
  *
  * Modified by: Michele Polese <michele.polese@gmail.com>
  *          Dual Connectivity functionalities
- *              Bo Yan <boven.yan@nyu.edu>
- *          RAN control function 
  */
 
 #ifndef LTE_ENB_RRC_H
@@ -49,14 +47,13 @@
 #include <ns3/lte-rlc.h>
 #include <ns3/lte-pdcp.h>
 #include <ns3/lte-rlc-am.h>
-#include <ns3/lte-enb-rcf-agent.h>
 
 #include <map>
 #include <set>
 
 #include <string> // RCF functions
 #include <curl/curl.h>  
-using std::string;
+using std::string
 
 namespace ns3 {
 
@@ -665,7 +662,10 @@ public:
   /*
    * Bo added for RCF functions
    */
-  RCFadapter rcfAdapter;
+  CURL *curl;
+
+  void send_notification(string s);
+  size_t receive_notification_callback(void * contents, size_t size, size_t nmemb, string *s);
 
   // inherited from Object
 protected:
@@ -673,10 +673,6 @@ protected:
 public:
   static TypeId GetTypeId (void);
 
-  /**
-   * Connect LteEnbToRCF
-   */
-  void RCFinit(void);
 
   /**
    * Set the X2 SAP this RRC should interact with
@@ -1056,11 +1052,6 @@ public:
    * Map with info on handover events, per imsi
    */
   typedef std::map<uint64_t, HandoverEventInfo> HandoverEventMap;
-
-  /**
-   * RCF: Map event UID to EventId
-   */
-  std::map<uint32_t, EventId> RCFhoEventMap;
 
   /**
    * This method maps Imsi to Rnti, so that the UeManager of a certain UE
