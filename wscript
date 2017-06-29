@@ -356,7 +356,12 @@ def configure(conf):
     conf.load('gnu_dirs')
     conf.load('clang_compilation_database', tooldir=['waf-tools'])
 
+    # conf.env['lcurl'] = conf.check(mandatory=True, lib='curl', uselib_stor='CURL')
+    # conf.env.append_value('CXXDEFINES', 'ENABLE_CURL')
+    # conf.env.append_value('CCDEFINES', 'ENABLE_CURL')
+
     env = conf.env
+
 
     if Options.options.enable_gcov:
         env['GCOV_ENABLED'] = True
@@ -608,6 +613,8 @@ def configure(conf):
                                  conf.env['ENABLE_GSL'],
                                  "GSL not found")
 
+    
+
     conf.find_program('libgcrypt-config', var='LIBGCRYPT_CONFIG', msg="python-config", mandatory=False)
     if env.LIBGCRYPT_CONFIG:
         conf.check_cfg(path=env.LIBGCRYPT_CONFIG, msg="Checking for libgcrypt", args='--cflags --libs', package='',
@@ -651,6 +658,7 @@ def configure(conf):
         if envvar in os.environ:
             value = shlex.split(os.environ[envvar])
             conf.env.append_value(confvar, value)
+
 
     print_config(env)
     
@@ -718,7 +726,10 @@ def create_ns3_program(bld, name, dependencies=('core',)):
     if program.env['ENABLE_STATIC_NS3']:
         if sys.platform == 'darwin':
             program.env.STLIB_MARKER = '-Wl,-all_load'
+            # program.env.STLIB_MARKER = '-Wl,-all_load, -lcurl'
         else:
+            # program.env.STLIB_MARKER = '-Wl,-Bstatic,--whole-archive, -lcurl'
+            # program.env.SHLIB_MARKER = '-Wl,-Bdynamic,--no-whole-archive,-lcurl'
             program.env.STLIB_MARKER = '-Wl,-Bstatic,--whole-archive'
             program.env.SHLIB_MARKER = '-Wl,-Bdynamic,--no-whole-archive'
     else:
@@ -726,6 +737,7 @@ def create_ns3_program(bld, name, dependencies=('core',)):
             # All ELF platforms are impacted but only the gcc compiler has a flag to fix it.
             if 'gcc' in (program.env.CXX_NAME, program.env.CC_NAME): 
                 program.env.append_value ('SHLIB_MARKER', '-Wl,--no-as-needed')
+                #program.env.append_value ('SHLIB_MARKER', '-Wl,--no-as-needed, -lcurl')
 
     return program
 
@@ -759,6 +771,7 @@ def add_scratch_programs(bld):
                 obj.target = filename
                 obj.name = obj.target
                 obj.install_path = None
+                # obj.uselib = 'CURL'
             elif filename.endswith(".cc"):
                 name = filename[:-len(".cc")]
                 obj = bld.create_ns3_program(name, all_modules)
@@ -767,6 +780,7 @@ def add_scratch_programs(bld):
                 obj.target = name
                 obj.name = obj.target
                 obj.install_path = None
+                # obj.uselib = 'CURL'
     except OSError:
         return
 

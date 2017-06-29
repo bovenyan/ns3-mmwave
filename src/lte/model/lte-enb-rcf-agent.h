@@ -54,32 +54,12 @@ public:
 namespace nlohmann {
 template <typename X, typename Y>
 struct adl_serializer<std::pair<X,Y> > {
-    static void to_json(json& j, const std::pair<X,Y> & pa) {
-        j.push_back(pa.first);
-        j.push_back(pa.second);
-    }
-    static void from_json(const json& j, std::pair<X,Y> & pa) {
-        pa.first = j[0];
-        pa.second = j[1];
-    }
+    static void to_json(json& j, const std::pair<X,Y> & pa); 
+    static void from_json(const json& j, std::pair<X,Y> & pa); 
 };
 
-void to_json(json& j, const ns3::RCFhoDecision & ha) {
-    j = json{{"type", ha.type}, {"imsi", ha.imsi},
-        {"oldCellId", ha.oldCellId}, {"targetCellId", ha.targetCellId},
-        {"toScheduleTime", ha.toScheduleTime},
-        {"toCancelEvent", ha.toCancelEvent} };
-}
-
-void from_json(const json& j, ns3::RCFhoDecision & ha) {
-    ha.type = j.at("type").get<int>();
-    ha.subtype = j.at("subtype").get<int>();
-    ha.imsi = j.at("imsi").get<uint64_t>();
-    ha.oldCellId = j.at("oldCellId").get<uint16_t>();
-    ha.targetCellId = j.at("targetCellId").get<uint16_t>();
-    ha.toScheduleTime = j.at("toScheduleTime").get<uint64_t>();
-    ha.toCancelEvent = j.at("toCancelEvent").get<uint32_t>();
-}
+void to_json(json& j, const ns3::RCFhoDecision & ha); 
+void from_json(const json& j, ns3::RCFhoDecision & ha); 
 }
 
 #endif

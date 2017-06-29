@@ -207,14 +207,14 @@ RCFhoDecision RCFadapter::RCFconnBestMMwave(uint64_t imsi) {
 }
 
 void RCFadapter::RCFinitializeLteEnbRRC(string handoverMode, double m_outageThreshold,
-        double m_sinrThresholdDifference, int m_fixedTttValue, int m_minDynTttValue,
-        int m_maxDynTttValue, double m_minDiffTttValue, double m_maxDiffTttValue,
-        int m_cellId, bool m_interRatHoMode){
+                                        double m_sinrThresholdDifference, int m_fixedTttValue, int m_minDynTttValue,
+                                        int m_maxDynTttValue, double m_minDiffTttValue, double m_maxDiffTttValue,
+                                        int m_cellId, bool m_interRatHoMode) {
     curl = curl_easy_init();
     if (curl) {
         json config;
         string response;
-        
+
         config["handoverMode"] = handoverMode;
         config["m_outageThreshold"] = m_outageThreshold;
         config["m_sinrThresholdDifference"] = m_sinrThresholdDifference;
@@ -227,12 +227,43 @@ void RCFadapter::RCFinitializeLteEnbRRC(string handoverMode, double m_outageThre
         config["m_interRatHoMode"] = m_interRatHoMode;
 
         std::string s("http://127.0.0.1/lteenb/init");
-        string jdump = config.dump(); 
+        string jdump = config.dump();
         SetCurlPOST(curl, s.c_str(), &response, jdump);
         PerformCurl(curl);
-        
+
         json jResponse = json::parse(response);
     }
 }
 
+}
+
+
+namespace nlohmann {
+template <typename X, typename Y>
+void adl_serializer<std::pair<X,Y> >::to_json(json& j, const std::pair<X,Y> & pa) {
+    j.push_back(pa.first);
+    j.push_back(pa.second);
+}
+template <typename X, typename Y>
+void adl_serializer<std::pair<X,Y> >::from_json(const json& j, std::pair<X,Y> & pa) {
+    pa.first = j[0];
+    pa.second = j[1];
+}
+
+void to_json(json& j, const ns3::RCFhoDecision & ha) {
+    j = json{{"type", ha.type}, {"imsi", ha.imsi},
+        {"oldCellId", ha.oldCellId}, {"targetCellId", ha.targetCellId},
+        {"toScheduleTime", ha.toScheduleTime},
+        {"toCancelEvent", ha.toCancelEvent} };
+}
+
+void from_json(const json& j, ns3::RCFhoDecision & ha) {
+    ha.type = j.at("type").get<int>();
+    ha.subtype = j.at("subtype").get<int>();
+    ha.imsi = j.at("imsi").get<uint64_t>();
+    ha.oldCellId = j.at("oldCellId").get<uint16_t>();
+    ha.targetCellId = j.at("targetCellId").get<uint16_t>();
+    ha.toScheduleTime = j.at("toScheduleTime").get<uint64_t>();
+    ha.toCancelEvent = j.at("toCancelEvent").get<uint32_t>();
+}
 }
