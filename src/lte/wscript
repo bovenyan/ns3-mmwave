@@ -1,5 +1,10 @@
 ## -*- Mode: python; py-indent-offset: 4; indent-tabs-mode: nil; coding: utf-8; -*-
 
+def configure(conf):
+    print("curl configured inside LTE!!!")
+    conf.env.append_value("LINKFLAGS", ["-lcurl"])
+    conf.env.append_value("LIB", ["curl"])  
+
 def build(bld):
 
     lte_module_dependencies = ['core', 'network', 'spectrum', 'stats', 'buildings', 'virtual-net-device','point-to-point','applications','internet','csma']

@@ -357,8 +357,8 @@ def configure(conf):
     conf.load('clang_compilation_database', tooldir=['waf-tools'])
 
     # conf.env['lcurl'] = conf.check(mandatory=True, lib='curl', uselib_stor='CURL')
-    # conf.env.append_value('CXXDEFINES', 'ENABLE_CURL')
-    # conf.env.append_value('CCDEFINES', 'ENABLE_CURL')
+    #conf.env.append_value('CXXDEFINES', 'ENABLE_CURL')
+    #conf.env.append_value('CCDEFINES', 'ENABLE_CURL')
 
     env = conf.env
 
@@ -855,6 +855,9 @@ def build(bld):
     bld.env['NS3_SCRIPT_DEPENDENCIES'] = []
     bld.env['NS3_RUNNABLE_PROGRAMS'] = []
     bld.env['NS3_RUNNABLE_SCRIPTS'] = []
+
+    #bld.env.append_value("CXXFLAGS", "-I/usl/include/curl.h")
+    #bld.env.append_value("LINKFLAGS", ["-lcurl"])
 
     wutils.bld = bld
     if Options.options.no_task_lines:
