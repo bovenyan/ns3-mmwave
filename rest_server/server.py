@@ -30,8 +30,7 @@ def reportMeasurement(mmWaveCellId):
 @app.route('/handover/trigger', methods=['POST'])
 def getHandoverTrigger():
     content = request.json
-    print content
-    
+
     if ("queryTime" in content):
         queryTime = int(content["queryTime"])
         handoverDecisionList = rcf.TriggerUeAssociationUpdate(queryTime)

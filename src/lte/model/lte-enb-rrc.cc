@@ -1359,12 +1359,12 @@ UeManager::RecvRrcConnectionSetupCompleted (LteRrcSap::RrcConnectionSetupComplet
         // RCF best MmWave eNB
         if (!m_rrc->m_ismmWave) {
             RCFhoDecision hoDecision = m_rrc->rcfAdapter.RCFconnBestMMwave(m_imsi);
-            if (hoDecision.type = 21) {
+            if (hoDecision.type == 21) {
                 // Debug
                 NS_LOG_UNCOND("RCF: RecvRrcConnectionSetupCompleted, Exit 21, targetCellId " << hoDecision.targetCellId);
                 //m_rrc->m_rrcSapUser->SendRrcConnectToMmWave(m_rnti, hoDecision.targetCellId);
             }
-            if (hoDecision.type = 22) {
+            if (hoDecision.type == 22) {
                 NS_LOG_UNCOND("RCF: RecvRrcConnectionSetupCompleted, Exit 22");
                 // m_allMmWaveInOutageAtInitialAccess = true;
             }
@@ -2905,6 +2905,8 @@ LteEnbRrc::TttBasedHandover(std::map<uint64_t, CellSinrMap>::iterator imsiIter, 
         NS_LOG_UNCOND("Current SINR " << currentSinrDb);
     }
 
+    NS_LOG_UNCOND("m_interRatHoMode: " << m_interRatHoMode);
+    NS_LOG_UNCOND("m_imsiUsingLte[" << imsi << "]: " << m_imsiUsingLte[imsi]);
     // the UE was in outage, now a mmWave eNB is available. It may be the one to which the UE is already attached or
     // another one
     if(alreadyAssociatedImsi && m_imsiUsingLte[imsi]) {
@@ -2958,13 +2960,13 @@ LteEnbRrc::TttBasedHandover(std::map<uint64_t, CellSinrMap>::iterator imsiIter, 
         // the UE is connected to a mmWave eNB which was not in outage
         // check if there are HO events pending
         HandoverEventMap::iterator handoverEvent = m_imsiHandoverEventsMap.find(imsi);
-        
+
         // RCF Exit 6
         NS_LOG_UNCOND("ORI: TttBasedHandover Exit 6");
         if (handoverEvent != m_imsiHandoverEventsMap.end()) {
             // an handover event is already scheduled
             // check if the cell to which the handover should happen is maxSinrCellId
-            
+
             if (handoverEvent->second.targetCellId == maxSinrCellId) {
                 if (currentSinrDb < m_outageThreshold) { // we need to handover right now!
                     handoverEvent->second.scheduledHandoverEvent.Cancel();
@@ -3037,8 +3039,8 @@ LteEnbRrc::TttBasedHandover(std::map<uint64_t, CellSinrMap>::iterator imsiIter, 
         handoverInfo.scheduledHandoverEvent = scheduledHandoverEvent;
 
         NS_LOG_UNCOND("ORI: TttBasedHandover Handover " <<
-                handoverInfo.sourceCellId << "->" << handoverInfo.targetCellId 
-                << " EventId " << scheduledHandoverEvent.GetUid());
+                      handoverInfo.sourceCellId << "->" << handoverInfo.targetCellId
+                      << " EventId " << scheduledHandoverEvent.GetUid());
 
         HandoverEventMap::iterator handoverEvent = m_imsiHandoverEventsMap.find(imsi);
         if(handoverEvent != m_imsiHandoverEventsMap.end()) { // another event was scheduled, but it was already deleted. Replace the entry
@@ -3231,7 +3233,105 @@ LteEnbRrc::ThresholdBasedSecondaryCellHandover(std::map<uint64_t, CellSinrMap>::
 
 void
 LteEnbRrc::TriggerUeAssociationUpdate() {
- 
+    // get Decision from RCF
+    NS_LOG_UNCOND("------------- TriggerUeAssociationUpdate ****** -------------");
+    vector<RCFhoDecision> rcfHoDecisionList = rcfAdapter.RCFgetHoDecisionList(Simulator::Now().GetNanoSeconds(), true);
+
+    for (vector<RCFhoDecision>::iterator iter = rcfHoDecisionList.begin();
+            iter != rcfHoDecisionList.end(); ++iter) {
+        Ptr<UeManager> ueMan;
+        NS_LOG_UNCOND("RCF status: " << GetUeManager(GetRntiFromImsi(iter->imsi))->GetAllMmWaveInOutageAtInitialAccess());
+        if ((iter->type == 3 || iter->type == 4) && (GetUeManager(GetRntiFromImsi(iter->imsi))->GetAllMmWaveInOutageAtInitialAccess())) {
+            NS_LOG_UNCOND("RCF: TriggerUeAssociationUpdate, Exit 3/4");
+        } else {
+            if (iter->subtype == 0) {
+                NS_LOG_UNCOND("RCF: TriggerUeAssociationUpdate, Exit " << iter->type);
+            }
+        }
+
+        /*         switch (iter->type) {
+         *         case 0:  //
+         *             break;
+         *         case 1:  // Exit 1
+         *             // Debug
+         *             if (iter->toCancelEvent != 0) {
+         *                 NS_LOG_UNCOND(" -- : Canceled event uuid: %u", iter->toCancelEvent);
+         *             }
+         *             GetUeManager(GetRntiFromImsi(iter->imsi))->SendRrcConnectionSwitch(false);
+         *
+         *             if (iter->toCancelEvent != 0) {
+         *                 RCFhoEventMap[iter->toCancelEvent].Cancel();
+         *                 RCFhoEventMap.erase(iter->toCancelEvent);
+         *             }
+         *
+         *             break;
+         *         case 2:  // Exit 2
+         *             // EpcX2SapProvider::SecondaryHandoverParams params;
+         *             // Debug
+         *             NS_LOG_UNCOND(" -- : imsi %u, old %u, target %u", iter->imsi, iter->oldCellId, iter->targetCellId);
+         *             params.imsi = iter->imsi;
+         *             params.targetCellId = iter->targetCellId;
+         *             params.oldCellId = iter->oldCellId;
+         *             m_x2SapProvider->SendMcHandoverRequest(params);
+         *             break;
+         *         case 3:
+         *             ueMan = GetUeManager(GetRntiFromImsi(iter->imsi));
+         *             if (ueMan->GetAllMmWaveInOutageAtInitialAccess()) {
+         *                 NS_LOG_INFO("Send connect to " << iter->targetCellId <<
+         *                             ", for the first time at least one mmWave eNB is not in outage");
+         *                 m_rrcSapUser->SendRrcConnectToMmWave (GetRntiFromImsi(iter->imsi),
+         *                                                       iter->targetCellId);
+         *                 if (iter->subtype == 1) {
+         *                     ueMan->SetAllMmWaveInOutageAtInitialAccess(false);
+         *                 }
+         *             } else {
+         *                 // it is on LTE, but now the last used MmWave cell is not in outage
+         *                 // switch back to MmWave
+         *                 ueMan->SendRrcConnectionSwitch(true);
+         *             }
+         *             break;
+         *         case 4:
+         *             ueMan = GetUeManager(GetRntiFromImsi(iter->imsi));
+         *             if (ueMan->GetAllMmWaveInOutageAtInitialAccess()) {
+         *                 NS_LOG_INFO("Send connect to " << iter->targetCellId <<
+         *                             ", for the first time at least one mmWave eNB is not in outage");
+         *                 m_rrcSapUser->SendRrcConnectToMmWave (GetRntiFromImsi(iter->imsi),
+         *                                                       iter->targetCellId);
+         *                 if (iter->subtype == 1) {
+         *                     ueMan->SetAllMmWaveInOutageAtInitialAccess(false);
+         *                 }
+         *             } else {
+         *                 // it is on LTE, but now a MmWave cell different from the last used
+         *                 // is not in outage, so we need to handover
+         *                 EpcX2SapProvider::SecondaryHandoverParams params;
+         *                 params.imsi = iter->imsi;
+         *                 params.targetCellId = iter->targetCellId;
+         *                 params.oldCellId = iter->oldCellId;
+         *             }
+         *             break;
+         *         case 5:
+         *             SendHandoverRequest(GetRntiFromImsi(iter->imsi), iter->targetCellId);
+         *             break;
+         *         case 6:
+         *             if (iter->toCancelEvent != 0) {
+         *                 EventId toCancelEventId = RCFhoEventMap[iter->toCancelEvent];
+         *                 toCancelEventId.Cancel();
+         *             }
+         *             if (iter->toScheduleTime >= 0) {
+         *                 EventId scheduledHandoverEvent = Simulator::Schedule(MilliSeconds(iter->toScheduleTime), &LteEnbRrc::PerformHandover, this, iter->imsi);
+         *                 RCFhoEventMap[scheduledHandoverEvent.GetUid()] = scheduledHandoverEvent;
+         *
+         *                 // Report scheduled event
+         *                 rcfAdapter.RCFeventScheduled(iter->imsi, iter->oldCellId,
+         *                                              iter->targetCellId, scheduledHandoverEvent.GetTs(),
+         *                                              scheduledHandoverEvent.GetUid());
+         *             }
+         *             break;
+         *         default:
+         *             break;
+         *         }  */
+    }
+
     // Local Decision
     if(m_imsiCellSinrMap.size() > 0) { // there are some entries
         for(std::map<uint64_t, CellSinrMap>::iterator imsiIter = m_imsiCellSinrMap.begin(); imsiIter != m_imsiCellSinrMap.end(); ++imsiIter) {
@@ -3308,6 +3408,7 @@ LteEnbRrc::TriggerUeAssociationUpdate() {
                 if(m_handoverMode == THRESHOLD) {
                     ThresholdBasedSecondaryCellHandover(imsiIter, sinrDifference, maxSinrCellId, maxSinrDb);
                 } else if(m_handoverMode == FIXED_TTT || m_handoverMode == DYNAMIC_TTT) {
+                    NS_LOG_UNCOND("ORI: Fall into TTTbased");
                     m_bestMmWaveCellForImsiMap[imsi] = maxSinrCellId;
                     TttBasedHandover(imsiIter, sinrDifference, maxSinrCellId, maxSinrDb);
                 } else {
@@ -3317,98 +3418,8 @@ LteEnbRrc::TriggerUeAssociationUpdate() {
         }
     }
 
-    // get Decision from RCF
-    vector<RCFhoDecision> rcfHoDecisionList = rcfAdapter.RCFgetHoDecisionList(Simulator::Now().GetNanoSeconds(), true);
-
-    for (vector<RCFhoDecision>::iterator iter = rcfHoDecisionList.begin();
-            iter != rcfHoDecisionList.end(); ++iter) {
-        Ptr<UeManager> ueMan;
-        // Debug
-        NS_LOG_UNCOND("RCF: TriggerUeAssociationUpdate, Exit " << iter->type);
-        
-/*         switch (iter->type) {
- *         case 0:  //
- *             break;
- *         case 1:  // Exit 1
- *             // Debug
- *             if (iter->toCancelEvent != 0) {
- *                 NS_LOG_UNCOND(" -- : Canceled event uuid: %u", iter->toCancelEvent);
- *             }  
- *             GetUeManager(GetRntiFromImsi(iter->imsi))->SendRrcConnectionSwitch(false);
- * 
- *             if (iter->toCancelEvent != 0) {
- *                 RCFhoEventMap[iter->toCancelEvent].Cancel();
- *                 RCFhoEventMap.erase(iter->toCancelEvent);
- *             }
- *  
- *             break;
- *         case 2:  // Exit 2
- *             // EpcX2SapProvider::SecondaryHandoverParams params;
- *             // Debug
- *             NS_LOG_UNCOND(" -- : imsi %u, old %u, target %u", iter->imsi, iter->oldCellId, iter->targetCellId); 
- *             params.imsi = iter->imsi;
- *             params.targetCellId = iter->targetCellId;
- *             params.oldCellId = iter->oldCellId;
- *             m_x2SapProvider->SendMcHandoverRequest(params);
- *             break; 
- *         case 3:
- *             ueMan = GetUeManager(GetRntiFromImsi(iter->imsi));
- *             if (ueMan->GetAllMmWaveInOutageAtInitialAccess()) {
- *                 NS_LOG_INFO("Send connect to " << iter->targetCellId <<
- *                             ", for the first time at least one mmWave eNB is not in outage");
- *                 m_rrcSapUser->SendRrcConnectToMmWave (GetRntiFromImsi(iter->imsi),
- *                                                       iter->targetCellId);
- *                 if (iter->subtype == 1) {
- *                     ueMan->SetAllMmWaveInOutageAtInitialAccess(false);
- *                 }
- *             } else {
- *                 // it is on LTE, but now the last used MmWave cell is not in outage
- *                 // switch back to MmWave
- *                 ueMan->SendRrcConnectionSwitch(true);
- *             }
- *             break;
- *         case 4:
- *             ueMan = GetUeManager(GetRntiFromImsi(iter->imsi));
- *             if (ueMan->GetAllMmWaveInOutageAtInitialAccess()) {
- *                 NS_LOG_INFO("Send connect to " << iter->targetCellId <<
- *                             ", for the first time at least one mmWave eNB is not in outage");
- *                 m_rrcSapUser->SendRrcConnectToMmWave (GetRntiFromImsi(iter->imsi),
- *                                                       iter->targetCellId);
- *                 if (iter->subtype == 1) {
- *                     ueMan->SetAllMmWaveInOutageAtInitialAccess(false);
- *                 }
- *             } else {
- *                 // it is on LTE, but now a MmWave cell different from the last used
- *                 // is not in outage, so we need to handover
- *                 EpcX2SapProvider::SecondaryHandoverParams params;
- *                 params.imsi = iter->imsi;
- *                 params.targetCellId = iter->targetCellId;
- *                 params.oldCellId = iter->oldCellId;
- *             }
- *             break;
- *         case 5:
- *             SendHandoverRequest(GetRntiFromImsi(iter->imsi), iter->targetCellId);
- *             break;
- *         case 6:
- *             if (iter->toCancelEvent != 0) {
- *                 EventId toCancelEventId = RCFhoEventMap[iter->toCancelEvent];
- *                 toCancelEventId.Cancel();
- *             }
- *             if (iter->toScheduleTime >= 0) {
- *                 EventId scheduledHandoverEvent = Simulator::Schedule(MilliSeconds(iter->toScheduleTime), &LteEnbRrc::PerformHandover, this, iter->imsi);
- *                 RCFhoEventMap[scheduledHandoverEvent.GetUid()] = scheduledHandoverEvent;
- * 
- *                 // Report scheduled event
- *                 rcfAdapter.RCFeventScheduled(iter->imsi, iter->oldCellId,
- *                                              iter->targetCellId, scheduledHandoverEvent.GetTs(),
- *                                              scheduledHandoverEvent.GetUid());
- *             }
- *             break;
- *         default:
- *             break;
- *         }  */
-    }
     Simulator::Schedule(MicroSeconds(m_crtPeriod), &LteEnbRrc::TriggerUeAssociationUpdate, this);
+    NS_LOG_UNCOND("------------- TriggerUeAssociationUpdate Finished -------------");
 }
 
 
@@ -3491,88 +3502,88 @@ LteEnbRrc::UpdateUeHandoverAssociation() {
     for (vector<RCFhoDecision>::iterator iter = rcfHoDecisionList.begin();
             iter != rcfHoDecisionList.end(); ++iter) {
         NS_LOG_UNCOND("RCF: UpdateUeHandoverAssociation, Exit " << iter->type);
-/*         Ptr<UeManager> ueMan;
- *         switch(iter->type) {
- *         case 1:
- *             if (iter->subtype == 1) {
- *                 EpcX2SapProvider::SecondaryHandoverParams params;
- *                 params.imsi = iter->imsi;
- *                 params.targetCellId = iter->targetCellId;
- *                 params.oldCellId = iter->oldCellId;
- *                 m_x2SapProvider->SendMcHandoverRequest(params);
- *             }
- *             if (iter->toCancelEvent != 0) {
- *                 EventId eId = RCFhoEventMap[iter->toCancelEvent];
- *                 eId.Cancel();
- *                 RCFhoEventMap.erase(iter->toCancelEvent);
- *             }
- *             break;
- *         case 3:
- *             ueMan = GetUeManager(GetRntiFromImsi(iter->imsi));
- *             if (ueMan->GetAllMmWaveInOutageAtInitialAccess()) {
- *                 NS_LOG_INFO("Send connect to " << iter->targetCellId <<
- *                             ", for the first time at least one mmWave eNB is not in outage");
- *                 m_rrcSapUser->SendRrcConnectToMmWave (GetRntiFromImsi(iter->imsi),
- *                                                       iter->targetCellId);
- *                 if (iter->subtype == 1) {
- *                     ueMan->SetAllMmWaveInOutageAtInitialAccess(false);
- *                 }
- *             } else {
- *                 // it is on LTE, but now the last used MmWave cell is not in outage
- *                 // switch back to MmWave
- *                 ueMan->SendRrcConnectionSwitch(true);
- *             }
- *             break;
- *         case 4:
- *             ueMan = GetUeManager(GetRntiFromImsi(iter->imsi));
- *             if (ueMan->GetAllMmWaveInOutageAtInitialAccess()) {
- *                 NS_LOG_INFO("Send connect to " << iter->targetCellId <<
- *                             ", for the first time at least one mmWave eNB is not in outage");
- *                 m_rrcSapUser->SendRrcConnectToMmWave (GetRntiFromImsi(iter->imsi),
- *                                                       iter->targetCellId);
- *                 if (iter->subtype == 1) {
- *                     ueMan->SetAllMmWaveInOutageAtInitialAccess(false);
- *                 }
- *             } else {
- *                 // it is on LTE, but now a MmWave cell different from the last used
- *                 // is not in outage, so we need to handover
- *                 EpcX2SapProvider::SecondaryHandoverParams params;
- *                 params.imsi = iter->imsi;
- *                 params.targetCellId = iter->targetCellId;
- *                 params.oldCellId = iter->oldCellId;
- *             }
- *             break;
- *         case 5:
- *             SendHandoverRequest(GetRntiFromImsi(iter->imsi), iter->targetCellId);
- *             break;
- *         case 6:
- *             if (iter->toCancelEvent != 0) {
- *                 EventId toCancelEventId = RCFhoEventMap[iter->toCancelEvent];
- *                 toCancelEventId.Cancel();
- *             }
- *             if (iter->toScheduleTime >= 0) {
- *                 EventId scheduledHandoverEvent = Simulator::Schedule(MilliSeconds(iter->toScheduleTime), &LteEnbRrc::PerformHandover, this, iter->imsi);
- *                 RCFhoEventMap[scheduledHandoverEvent.GetUid()] = scheduledHandoverEvent;
- * 
- *                 // Report scheduled event
- *                 rcfAdapter.RCFeventScheduled(iter->imsi, iter->oldCellId,
- *                                              iter->targetCellId, scheduledHandoverEvent.GetTs(),
- *                                              scheduledHandoverEvent.GetUid());
- *             }
- *         case 11:
- *             SendHandoverRequest(GetRntiFromImsi(iter->imsi), iter->targetCellId);
- *             break;
- *         case 12:
- *             EpcX2SapProvider::SecondaryHandoverParams params;
- *             params.imsi = iter->imsi;
- *             params.targetCellId = iter->targetCellId;
- *             params.oldCellId = iter->oldCellId;
- *             m_x2SapProvider->SendMcHandoverRequest(params);
- *             break;
- * 
- *         default:
- *             break;
- *         } */
+        /*         Ptr<UeManager> ueMan;
+         *         switch(iter->type) {
+         *         case 1:
+         *             if (iter->subtype == 1) {
+         *                 EpcX2SapProvider::SecondaryHandoverParams params;
+         *                 params.imsi = iter->imsi;
+         *                 params.targetCellId = iter->targetCellId;
+         *                 params.oldCellId = iter->oldCellId;
+         *                 m_x2SapProvider->SendMcHandoverRequest(params);
+         *             }
+         *             if (iter->toCancelEvent != 0) {
+         *                 EventId eId = RCFhoEventMap[iter->toCancelEvent];
+         *                 eId.Cancel();
+         *                 RCFhoEventMap.erase(iter->toCancelEvent);
+         *             }
+         *             break;
+         *         case 3:
+         *             ueMan = GetUeManager(GetRntiFromImsi(iter->imsi));
+         *             if (ueMan->GetAllMmWaveInOutageAtInitialAccess()) {
+         *                 NS_LOG_INFO("Send connect to " << iter->targetCellId <<
+         *                             ", for the first time at least one mmWave eNB is not in outage");
+         *                 m_rrcSapUser->SendRrcConnectToMmWave (GetRntiFromImsi(iter->imsi),
+         *                                                       iter->targetCellId);
+         *                 if (iter->subtype == 1) {
+         *                     ueMan->SetAllMmWaveInOutageAtInitialAccess(false);
+         *                 }
+         *             } else {
+         *                 // it is on LTE, but now the last used MmWave cell is not in outage
+         *                 // switch back to MmWave
+         *                 ueMan->SendRrcConnectionSwitch(true);
+         *             }
+         *             break;
+         *         case 4:
+         *             ueMan = GetUeManager(GetRntiFromImsi(iter->imsi));
+         *             if (ueMan->GetAllMmWaveInOutageAtInitialAccess()) {
+         *                 NS_LOG_INFO("Send connect to " << iter->targetCellId <<
+         *                             ", for the first time at least one mmWave eNB is not in outage");
+         *                 m_rrcSapUser->SendRrcConnectToMmWave (GetRntiFromImsi(iter->imsi),
+         *                                                       iter->targetCellId);
+         *                 if (iter->subtype == 1) {
+         *                     ueMan->SetAllMmWaveInOutageAtInitialAccess(false);
+         *                 }
+         *             } else {
+         *                 // it is on LTE, but now a MmWave cell different from the last used
+         *                 // is not in outage, so we need to handover
+         *                 EpcX2SapProvider::SecondaryHandoverParams params;
+         *                 params.imsi = iter->imsi;
+         *                 params.targetCellId = iter->targetCellId;
+         *                 params.oldCellId = iter->oldCellId;
+         *             }
+         *             break;
+         *         case 5:
+         *             SendHandoverRequest(GetRntiFromImsi(iter->imsi), iter->targetCellId);
+         *             break;
+         *         case 6:
+         *             if (iter->toCancelEvent != 0) {
+         *                 EventId toCancelEventId = RCFhoEventMap[iter->toCancelEvent];
+         *                 toCancelEventId.Cancel();
+         *             }
+         *             if (iter->toScheduleTime >= 0) {
+         *                 EventId scheduledHandoverEvent = Simulator::Schedule(MilliSeconds(iter->toScheduleTime), &LteEnbRrc::PerformHandover, this, iter->imsi);
+         *                 RCFhoEventMap[scheduledHandoverEvent.GetUid()] = scheduledHandoverEvent;
+         *
+         *                 // Report scheduled event
+         *                 rcfAdapter.RCFeventScheduled(iter->imsi, iter->oldCellId,
+         *                                              iter->targetCellId, scheduledHandoverEvent.GetTs(),
+         *                                              scheduledHandoverEvent.GetUid());
+         *             }
+         *         case 11:
+         *             SendHandoverRequest(GetRntiFromImsi(iter->imsi), iter->targetCellId);
+         *             break;
+         *         case 12:
+         *             EpcX2SapProvider::SecondaryHandoverParams params;
+         *             params.imsi = iter->imsi;
+         *             params.targetCellId = iter->targetCellId;
+         *             params.oldCellId = iter->oldCellId;
+         *             m_x2SapProvider->SendMcHandoverRequest(params);
+         *             break;
+         *
+         *         default:
+         *             break;
+         *         } */
     }
 
     // TODO rules for possible ho of each UE
@@ -4025,7 +4036,7 @@ LteEnbRrc::DoRecvLteMmWaveHandoverCompleted (EpcX2SapUser::SecondaryHandoverPara
             m_mmWaveCellSetupCompleted[imsi] = true;
             // RCF Update States
             rcfAdapter.RCFupdateStates(imsi, true, true,
-                                              false, 0, true, false);
+                                       false, 0, true, false);
         } else {
             // m_imsiUsingLte[imsi] = true;
             // if the LTE cell is the target of the Handover, it may still

@@ -93,7 +93,7 @@ class rcf_dual_conn():
                 return self.m_minDynTttValue
             else: # in between
                 ttt = self.m_maxDynTttValue - self.m_minDynTttValue
-                ttt = ttt * (self.sinrDifference - self.m_minDiffTttValue)
+                ttt = ttt * (sinrDifference - self.m_minDiffTttValue)
                 ttt = ttt / (self.m_maxDiffTttValue - self.m_minDiffTttValue)
                 ttt = self.m_maxDynTttValue - ttt 
 
@@ -101,7 +101,7 @@ class rcf_dual_conn():
                     # Assert ttt < 0
                     pass
                 
-                truncated_ttt = ttt & 256
+                truncated_ttt = int(ttt) & 256
                 return truncated_ttt
         else:
             # Assert Unsupported HO mode 
@@ -161,7 +161,7 @@ class rcf_dual_conn():
                     if (sinrDifference > self.m_sinrThresholdDifference):
                         # not on LTE, handover between MmWave cells
                         # The new secondary cell HO procedure does not require to switch to LTE
-                        HOdecision = handoverDecision(2, imsi, self.m_lastMmWaveCell[imsi].
+                        HOdecision = handoverDecision(2, imsi, self.m_lastMmWaveCell[imsi],
                                 maxSinrCellId)
                         self.m_mmWaveCellSetupCompleted[imsi] = False
                         return HOdecision.serialize()
@@ -239,26 +239,27 @@ class rcf_dual_conn():
 
         # the UE was in outage, now a mmWave eNB is available. It may be the one to which the UE 
         # is already attached or another one
-        if (alreadyAssociatedImsi and imsi in self.m_imsiUsingLte):
+        if (alreadyAssociatedImsi and self.m_imsiUsingLte[imsi]):
             if (not self.m_interRatHoMode):
-                if (imsi in self.m_lastMmWaveCell and not onHandoverImsi):
-                    # it is on LTE, but now the last used MmWave cell is not in outage
-                    # switch back to MmWave
-                    HOdecision = handoverDecision(3, imsi, 0, maxSinrCellId)
-                    HOdecision.subtype = 1
-                    return HOdecision.serialize() 
-                elif (self.m_lastMmWaveCell[imsi] != maxSinrCellId and not onHandoverImsi):
-                    # it is on LTE, but now a MmWave cell different from the last used 
-                    # is not in outage, so we need to handover
-                    # already using LTE connection
-                    # trigger ho via X2
-                    self.m_mmWaveCellSetupCompleted[imsi] = False
-                    HOdecision = handoverDecision(4, imsi, self.m_lastMmWaveCell[imsi],
-                            maxSinrCellId, 1)
-
+                if (not onHandoverImsi):
+                    if (self.m_lastMmWaveCell[imsi] == maxSinrCellId):
+                        # it is on LTE, but now the last used MmWave cell is not in outage
+                        # switch back to MmWave
+                        HOdecision = handoverDecision(3, imsi, 0, maxSinrCellId)
+                    else:
+                        # it is on LTE, but now a MmWave cell different from the last used 
+                        # is not in outage, so we need to handover
+                        # already using LTE connection
+                        # trigger ho via X2
+                        self.m_mmWaveCellSetupCompleted[imsi] = False
+                        HOdecision = handoverDecision(4, imsi, self.m_lastMmWaveCell[imsi],
+                                maxSinrCellId)
+                    
                     return HOdecision.serialize() 
 
                 HOdecision = handoverDecision(3, imsi, 0, maxSinrCellId)
+                HOdecision.subtype = 1
+
                 return HOdecision.serialize()
             else:
                 if (not onHandoverImsi):

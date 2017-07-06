@@ -5,8 +5,6 @@
 // #include <ns3/log.h>
 
 using nlohmann::json;
-using std::cout; 
-using std::endl;
 
 size_t RESTcallback(void * contents, size_t size, size_t nmemb, string *s) {
     size_t new_length = size * nmemb;
@@ -105,13 +103,8 @@ void RCFadapter::RCFsinrReport(int m_mmWaveCellId, std::map<uint64_t, double> si
         std::stringstream ss; 
         ss << "http://127.0.0.1:5000/stats/report/";
         ss << m_mmWaveCellId;
-        cout << ss.str()<<endl;
         string jdump = report.dump();
-
-        cout<<jdump<<endl;
-
         SetCurlPOST(curl, ss.str().c_str(), &response, jdump);
-        cout<<"CURL set finished"<<endl;
         PerformCurl(curl);
 
         // TODO: process return
@@ -243,7 +236,6 @@ void RCFadapter::RCFinitializeLteEnbRRC(string handoverMode, double m_outageThre
 
         std::string s("http://127.0.0.1:5000/lteenb/init");
         string jdump = config.dump();
-        cout <<"DEBUG: CURL "<<  jdump << endl;
 
         SetCurlPOST(curl, s.c_str(), &response, jdump);
         PerformCurl(curl);
