@@ -1,9 +1,12 @@
 #include "lte-enb-rcf-agent.h"
 #include <curl/curl.h>
 #include "json.hpp"
+#include <iostream>
 // #include <ns3/log.h>
 
 using nlohmann::json;
+using std::cout; 
+using std::endl;
 
 size_t RESTcallback(void * contents, size_t size, size_t nmemb, string *s) {
     size_t new_length = size * nmemb;
@@ -99,10 +102,16 @@ void RCFadapter::RCFsinrReport(int m_mmWaveCellId, std::map<uint64_t, double> si
         }
 
         string response;
-        std::stringstream ss("http://127.0.0.1/stats/report/");
+        std::stringstream ss; 
+        ss << "http://127.0.0.1:5000/stats/report/";
         ss << m_mmWaveCellId;
+        cout << ss.str()<<endl;
         string jdump = report.dump();
+
+        cout<<jdump<<endl;
+
         SetCurlPOST(curl, ss.str().c_str(), &response, jdump);
+        cout<<"CURL set finished"<<endl;
         PerformCurl(curl);
 
         // TODO: process return
@@ -121,13 +130,15 @@ vector<RCFhoDecision> RCFadapter::RCFgetHoDecisionList(uint64_t queryTime, bool 
         json timestamp;
         timestamp["queryTime"] = queryTime;
 
-        std::stringstream ss("http://127.0.0.1/handover/");
+        std::stringstream ss;
+        ss << "http://127.0.0.1:5000/handover/";
         if (triggerOrUpdate) {
             ss<<"trigger";
         } else {
             ss<<"update";
         }
         string jdump = timestamp.dump();
+
         SetCurlPOST(curl, ss.str().c_str(), &response, jdump);
         PerformCurl(curl);
 
@@ -151,7 +162,8 @@ void RCFadapter::RCFeventScheduled(uint64_t imsi, uint16_t oldCellId, uint16_t t
         schedule["eventTs"] = eventTs;
         schedule["eventUid"] = eventUid;
 
-        std::stringstream ss("http://127.0.0.1/handover/schedule/");
+        std::stringstream ss;
+        ss << "http://127.0.0.1:5000/handover/schedule/";
         ss << imsi;
         string jdump = schedule.dump();
         SetCurlPOST(curl, ss.str().c_str(), &response, jdump);
@@ -178,7 +190,8 @@ void RCFadapter::RCFupdateStates(uint64_t imsi, bool m_mmWaveCellSetupCompletedU
             statesUpdate["m_imsiUsingLte"] = m_imsiUsingLteValue;
         }
 
-        std::stringstream ss("http://127.0.0.1/handover/statesupdate/");
+        std::stringstream ss;
+        ss << "http://127.0.0.1:5000/handover/statesupdate/";
         ss << imsi;
         string jdump = statesUpdate.dump();
         SetCurlPOST(curl, ss.str().c_str(), &response, jdump);
@@ -193,7 +206,8 @@ RCFhoDecision RCFadapter::RCFconnBestMMwave(uint64_t imsi) {
     if (curl) {
         string response;
 
-        std::stringstream ss("http://127.0.0.1/handover/bestconn/");
+        std::stringstream ss;
+        ss << "http://127.0.0.1:5000/handover/bestconn/";
         ss << imsi;
         string jdump = "";
         SetCurlPOST(curl, ss.str().c_str(), &response, jdump);
@@ -211,6 +225,7 @@ void RCFadapter::RCFinitializeLteEnbRRC(string handoverMode, double m_outageThre
                                         int m_maxDynTttValue, double m_minDiffTttValue, double m_maxDiffTttValue,
                                         int m_cellId, bool m_interRatHoMode) {
     curl = curl_easy_init();
+
     if (curl) {
         json config;
         string response;
@@ -226,8 +241,10 @@ void RCFadapter::RCFinitializeLteEnbRRC(string handoverMode, double m_outageThre
         config["m_cellId"] = m_cellId;
         config["m_interRatHoMode"] = m_interRatHoMode;
 
-        std::string s("http://127.0.0.1/lteenb/init");
+        std::string s("http://127.0.0.1:5000/lteenb/init");
         string jdump = config.dump();
+        cout <<"DEBUG: CURL "<<  jdump << endl;
+
         SetCurlPOST(curl, s.c_str(), &response, jdump);
         PerformCurl(curl);
 

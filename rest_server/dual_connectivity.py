@@ -1,5 +1,6 @@
 from math import log10
 from collections import defaultdict,deque
+import logging
 
 class handoverDecision():
     def __init__(self, Type, imsi, oldCellId, targetCellId):
@@ -10,6 +11,7 @@ class handoverDecision():
         self.targetCellId = targetCellId
         self.toScheduleTime = 0 
         self.toCancelEvent = -1 
+
 
     def serialize(self):
         return {"type": self.type, 
@@ -35,6 +37,7 @@ class rcf_dual_conn():
 
         # TTT based handover management
         self.m_imsiHandOverEventsMap = defaultdict(list)            # int -> [source, target, eventId, eventTs]
+
         self.m_outageThreshold = 0.0
         self.m_sinrThresholdDifference = 0.0
         
@@ -47,11 +50,15 @@ class rcf_dual_conn():
         # Cell identifier. Must be unique across the simulation.
         self.m_cellId = 0
         self.m_interRatHoMode = False 
+        
+        logging.basicConfig(level=logging.INFO)
+        self.logger = logging.getLogger(__name__)
 
     def initialize(self, content):
         self.m_handoverMode = content["handoverMode"]
         self.m_outageThreshold = content["m_outageThreshold"]
         self.m_sinrThresholdDifference = content["m_sinrThresholdDifference"]
+        self.m_interRatHoMode = content["m_interRatHoMode"]
         
         self.m_fixedTttValue = content["m_fixedTttValue"]
         self.m_minDynTttValue = content["m_minDynTttValue"]
@@ -61,11 +68,14 @@ class rcf_dual_conn():
         
     def DoRecvUeSinrUpdate(self, mmWaveCellId, ueImsiSinrMap):
         # update and add the entry
+        # debug 
+        # print "ueImsiSinr: " + str(ueImsiSinrMap)
         self.m_cellSinrMap[mmWaveCellId] = ueImsiSinrMap
         self.m_numNewSinrReports += 1
 
         # cycle on all the Imsi whose SINR is known in cell mmWaveCellId
-        for imsi, sinr in ueImsiSinrMap:
+        for imsi in ueImsiSinrMap:
+            sinr = ueImsiSinrMap[imsi]
             # deleted m_notifyMmWaveSinrTrace(imsi, mmWaveCellId, sinr);
             # insert the entry
             if not (imsi in self.m_imsiCellSinrMap):
@@ -206,6 +216,7 @@ class rcf_dual_conn():
 
     def TttBasedHandover(self, queryTime, imsi, cellSinrMap, sinrDifference, 
             maxSinrCellId, maxSinrDb):
+        HOdecision = None
         alreadyAssociatedImsi = False
         onHandoverImsi = True
 
@@ -219,9 +230,12 @@ class rcf_dual_conn():
         handoverNeeded = False
 
         currentSinrDb = 0
-
         if (alreadyAssociatedImsi and imsi in self.m_lastMmWaveCell):
-            currentSinrDb = 10 * log10(self.m_imsiCellSinrMap[imsi][self.m_lastMmWaveCell[imsi]])
+            currentSinr = self.m_imsiCellSinrMap[imsi][self.m_lastMmWaveCell[imsi]]
+            if (currentSinr == 0):
+                currentSinrDb = float('-inf')
+            else:
+                currentSinrDb = 10 * log10(currentSinr)
 
         # the UE was in outage, now a mmWave eNB is available. It may be the one to which the UE 
         # is already attached or another one
@@ -312,7 +326,10 @@ class rcf_dual_conn():
             HOdecision.sourceCellId = self.m_lastMmWaveCell[imsi]
             HOdecision.targetCellId = maxSinrCellId
 
-        return HOdecision.serialize()
+        if (HOdecision is None):
+            return None
+        else:
+            return HOdecision.serialize()
 
     def TriggerUeAssociationUpdate(self, queryTime):
         handoverDecisionList = []
@@ -332,28 +349,43 @@ class rcf_dual_conn():
             """
             if (imsi in self.m_mmWaveCellSetupCompleted):
                 alreadyAssociatedImsi = True
-                onHandoverImsi = not (self.m_mmWaveCellSetupCompleted(imsi))
+                onHandoverImsi = not (self.m_mmWaveCellSetupCompleted[imsi])
             else:
                 alreadyAssociatedImsi = False
                 onHandoverImsi = True
 
             cellSinrMap = self.m_imsiCellSinrMap[imsi]
 
+            print self.m_lastMmWaveCell
             for cellId, sinr in cellSinrMap.iteritems():
                 if (sinr > maxSinr):
                     maxSinr = sinr
                     maxSinrCellId = cellId
 
-                if self.m_lastMmWaveCell[imsi] == sinr:
+                if self.m_lastMmWaveCell[imsi] == cellId:
                     currentSinr = sinr
 
-            sinrDifference = abs(10*(log10(maxSinr) - log10(currentSinr)))
+            sinrDifference = 0
+            currentSinrDb = 0
+            if (currentSinr == 0):
+                sinrDifference = float('inf')
+                currentSinrDb = float('-inf')
+            else:
+                sinrDifference = abs(10*(log10(maxSinr) - log10(currentSinr)))
+                currentSinrDb = 10 * log10(currentSinr)
+
             maxSinrDb = 10 * log10(maxSinr)
-            currentSinrDb = 10 * log10 * log10(maxSinr)
+
+            self.logger.info("MaxSinr " + str(maxSinrDb) + 
+                    " in cell " + str(maxSinrCellId) +  
+                    " current cell " + str(self.m_lastMmWaveCell[imsi]) +
+                    " currentSinrDb " + str(currentSinrDb) + 
+                    " sinrDifference " + str(sinrDifference))
 
             # mmWave outage or currently using Lte but no mmwave are good 
             if ( maxSinrDb < self.m_outageThreshold or 
-                    (m_imsiUsingLte[imsi] and maxSinrDb < m_outageThreshold + 2)):
+                    (self.m_imsiUsingLte[imsi] and maxSinrDb < m_outageThreshold + 2)):
+                self.logger.info("----- Warn: outage detected ------ at time " + str(queryTime/10e9)) 
                 if (not m_imsiUsingLte[imsi]):
                     # handover from mmwave to lte
                     if (not onHandoverImsi):
@@ -469,13 +501,13 @@ class rcf_dual_conn():
     
     def RCFupdateStates(self, imsi, m_mmWaveCellSetupCompletedVal, m_lastMmWaveCellVal, m_imsiUsingLteVal):
         if (not m_mmWaveCellSetupCompletedVal is None):
-            self.m_mmWaveCellSetupCompleted[imsi] = self.m_mmWaveCellSetupCompletedVal
-        if (not m_lastmmwavecellVal is none):
+            self.m_mmWaveCellSetupCompleted[imsi] = m_mmWaveCellSetupCompletedVal
+        if (not m_lastMmWaveCellVal is None):
             self.m_lastMmWaveCell[imsi] = m_lastMmWaveCellVal
         if (not m_imsiUsingLteVal is None):
             self.m_imsiUsingLte[imsi] = m_imsiUsingLteVal
 
-    def RCFconnBestMMwave(self, imsi):
+    def RCFconnBestMmWave(self, imsi):
         HOdecision = handoverDecision(0, 0, 0, 0)
 
         if (self.m_cellId != self.m_bestMmWaveCellForImsiMap[imsi]):

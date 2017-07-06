@@ -1,5 +1,6 @@
 from flask import Flask, jsonify, request
 from dual_connectivity import rcf_dual_conn
+from collections import defaultdict
 
 app = Flask(__name__)
 rcf = rcf_dual_conn()
@@ -8,6 +9,7 @@ rcf = rcf_dual_conn()
 def initializeLTE():
     content = request.json
     if (isinstance(content, dict)):
+        print content
         rcf.initialize(content)
     return jsonify([]);
 
@@ -25,18 +27,20 @@ def reportMeasurement(mmWaveCellId):
     else:
         return jsonify({'status': 1})
 
-@app.route('/handover/action/trigger', methods=['POST'])
+@app.route('/handover/trigger', methods=['POST'])
 def getHandoverTrigger():
     content = request.json
+    print content
     
     if ("queryTime" in content):
         queryTime = int(content["queryTime"])
         handoverDecisionList = rcf.TriggerUeAssociationUpdate(queryTime)
+        print handoverDecisionList
         return jsonify(handoverDecisionList)
     else:
         return jsonify([])
 
-@app.route('/handover/action/update', methods=['POST'])
+@app.route('/handover/update', methods=['POST'])
 def getHandoverUpdate():
     content = request.json
     
@@ -47,7 +51,7 @@ def getHandoverUpdate():
     else:
         return jsonify([])
 
-@app.route('/handover/schedule/<int:imsi>')
+@app.route('/handover/schedule/<int:imsi>', methods=['POST'])
 def scheduleEvent(imsi):
     content = request.json
 
@@ -59,12 +63,11 @@ def scheduleEvent(imsi):
     else:
         return jsonify([])
 
-@app.route('/handover/statesupdate/<int:imsi>')
+@app.route('/handover/statesupdate/<int:imsi>', methods=['POST'])
 def updateStates(imsi):
     content = request.json
 
     if (isinstance(content, dict)):
-        imsi = content['imsi']
         m_mmWaveCellSetupCompletedVal = None
         m_lastMmWaveCellVal = None
         m_imsiUsingLteVal = None
@@ -82,10 +85,9 @@ def updateStates(imsi):
     else:
         return jsonify([])
 
-@app.route('/handover/bestconn/<int:imsi>')
+@app.route('/handover/bestconn/<int:imsi>', methods=['POST'])
 def selBestConn(imsi):
-    content = request.json
-    HOdecision = rcf.RCFconnBestMmwave(imsi)
+    HOdecision = rcf.RCFconnBestMmWave(imsi)
     return jsonify(HOdecision)
 
 if __name__ == "__main__":
